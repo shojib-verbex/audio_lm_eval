@@ -1,0 +1,7 @@
+task: "ccr_jp_customer"
+test_split: test
+include: _default_template_yaml
+dataset_kwargs:
+  data_files:
+    test: /raid/ASR/asr-ja-eval-datasets/ccr_202306_disc1_phase1_200_calls/segments/customer_manifest_2.2_hr.json
+  field: null

@@ -252,6 +252,18 @@ class OpenAICompatible(lmms):
             audio_b64 = base64.b64encode(handle.read()).decode("utf-8")
         return audio_b64, audio_format
 
+    def encode_audio_dict(self, audio_dict: dict):
+        """Encode a HuggingFace-style audio dict (with 'array' and 'sampling_rate') to base64 WAV."""
+        import io
+        import soundfile as sf
+
+        audio_array = audio_dict["array"]
+        sr = audio_dict["sampling_rate"]
+        buf = io.BytesIO()
+        sf.write(buf, audio_array, sr, format="WAV")
+        audio_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return audio_b64, "wav"
+
     def flatten(self, input):
         new_list = []
         for i in input:
@@ -404,6 +416,9 @@ class OpenAICompatible(lmms):
                         imgs.extend(frames)
                     elif isinstance(visual, str) and (".wav" in visual or ".mp3" in visual or ".flac" in visual or ".aac" in visual or ".ogg" in visual or ".m4a" in visual):
                         audio_b64, audio_format = self.encode_audio_file(visual)
+                        imgs.append({"audio_b64": audio_b64, "audio_format": audio_format})
+                    elif isinstance(visual, dict) and "array" in visual and "sampling_rate" in visual:
+                        audio_b64, audio_format = self.encode_audio_dict(visual)
                         imgs.append({"audio_b64": audio_b64, "audio_format": audio_format})
                     elif isinstance(visual, str) and (".jpg" in visual or ".jpeg" in visual or ".png" in visual or ".gif" in visual or ".bmp" in visual or ".tiff" in visual or ".webp" in visual):
                         imgs.append(self.encode_image(visual))

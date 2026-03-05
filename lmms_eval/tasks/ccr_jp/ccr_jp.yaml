@@ -1,0 +1,5 @@
+group: ccr_jp
+task:
+  - ccr_jp_customer
+  - ccr_jp_agent
+  - ccr_jp_mixed

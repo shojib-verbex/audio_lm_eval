@@ -112,9 +112,20 @@ class ChatMessages(BaseModel):
                                 "image_url": {"url": f"data:{mime_type};base64,{self.encode_image(image, encode_cache, image_format, quality)}"},
                             }
                         )
-                # TODO, audio hasn't been implemented yet
                 elif content.type == "audio":
-                    openai_message["content"].append({"type": "audio_url", "audio_url": {"url": content.url}})
+                    if isinstance(content.url, dict) and "array" in content.url and "sampling_rate" in content.url:
+                        import base64
+                        import io
+                        import soundfile as sf
+
+                        buf = io.BytesIO()
+                        sf.write(buf, content.url["array"], content.url["sampling_rate"], format="WAV")
+                        audio_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                        openai_message["content"].append(
+                            {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
+                        )
+                    else:
+                        openai_message["content"].append({"type": "audio_url", "audio_url": {"url": content.url}})
             openai_messages.append(openai_message)
         return openai_messages
 
@@ -157,9 +168,20 @@ class ChatMessages(BaseModel):
                                 "image_url": {"url": f"data:{mime_type};base64,{self.encode_image(image, encode_cache, image_format, quality)}"},
                             }
                         )
-                # TODO, audio hasn't been implemented yet
                 elif content.type == "audio":
-                    openai_message["content"].append({"type": "audio_url", "audio_url": {"url": content.url}})
+                    if isinstance(content.url, dict) and "array" in content.url and "sampling_rate" in content.url:
+                        import base64
+                        import io
+                        import soundfile as sf
+
+                        buf = io.BytesIO()
+                        sf.write(buf, content.url["array"], content.url["sampling_rate"], format="WAV")
+                        audio_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                        openai_message["content"].append(
+                            {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
+                        )
+                    else:
+                        openai_message["content"].append({"type": "audio_url", "audio_url": {"url": content.url}})
             openai_messages.append(openai_message)
         return openai_messages
 
