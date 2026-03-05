@@ -13,17 +13,14 @@ from lmms_eval import utils
 from lmms_eval.api.instance import Instance
 from lmms_eval.api.model import lmms
 from lmms_eval.api.registry import register_model
+from lmms_eval.imports import optional_import
 from lmms_eval.models.model_utils.audio_processing import split_audio
 
-try:
-    from transformers import Qwen3OmniMoeForConditionalGeneration, Qwen3OmniMoeProcessor
-except ImportError:
-    eval_logger.warning("Failed to import Qwen3OmniMoe classes; Please install transformers from source: pip install git+https://github.com/huggingface/transformers")
-
-try:
-    from qwen_omni_utils import process_mm_info
-except ImportError:
-    eval_logger.warning("Failed to import qwen_omni_utils; Please install it via `pip install qwen-omni-utils`")
+Qwen3OmniMoeForConditionalGeneration, _has_qwen3_omni_model = optional_import(
+    "transformers", "Qwen3OmniMoeForConditionalGeneration"
+)
+Qwen3OmniMoeProcessor, _ = optional_import("transformers", "Qwen3OmniMoeProcessor")
+process_mm_info, _has_qwen_omni_utils = optional_import("qwen_omni_utils", "process_mm_info")
 
 
 @register_model("qwen3_omni")
@@ -47,6 +44,18 @@ class Qwen3_Omni(lmms):
     ) -> None:
         super().__init__()
         assert kwargs == {}, f"Unexpected kwargs: {kwargs}"
+
+        if not _has_qwen3_omni_model:
+            raise ImportError(
+                "Qwen3OmniMoeForConditionalGeneration not found in transformers. "
+                "Install a compatible version: pip install lmms_eval[qwen3-omni] "
+                "or pip install git+https://github.com/huggingface/transformers"
+            )
+        if not _has_qwen_omni_utils:
+            raise ImportError(
+                "qwen_omni_utils is required for Qwen3-Omni. "
+                "Install with: pip install lmms_eval[qwen3-omni]"
+            )
 
         accelerator = Accelerator()
         if accelerator.num_processes > 1:

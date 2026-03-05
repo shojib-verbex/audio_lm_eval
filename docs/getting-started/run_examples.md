@@ -299,6 +299,44 @@ python -m lmms_eval \
     --output_path ./logs/
 ```
 
+### Qwen3-Omni
+
+Qwen3-Omni is a multimodal model that supports audio, image, and video inputs.
+
+```bash
+cd /path/to/lmms-eval
+python3 -m pip install -e ".[qwen3-omni]"
+
+# This installs: librosa, soundfile, qwen-omni-utils, moviepy
+
+TASK=$1
+MODEL_PATH=${2:-"Qwen/Qwen3-Omni-30B-A3B-Instruct"}
+echo $TASK
+TASK_SUFFIX="${TASK//,/_}"
+echo $TASK_SUFFIX
+
+python -m lmms_eval \
+    --model qwen3_omni \
+    --model_args pretrained=$MODEL_PATH \
+    --tasks $TASK \
+    --batch_size 1 \
+    --log_samples \
+    --log_samples_suffix $TASK_SUFFIX \
+    --output_path ./logs/
+```
+
+You can also pass additional model args such as `attn_implementation` and `max_num_frames`:
+
+```bash
+python -m lmms_eval \
+    --model qwen3_omni \
+    --model_args pretrained=Qwen/Qwen3-Omni-30B-A3B-Instruct,attn_implementation=flash_attention_2,max_num_frames=64 \
+    --tasks librispeech_test_clean \
+    --batch_size 1 \
+    --limit 10 \
+    --output_path ./logs/
+```
+
 ### Gemini Audio
 
 ```bash
@@ -583,5 +621,80 @@ accelerate launch --num_processes 8 --main_process_port 12345 -m lmms_eval \
     --batch_size 1 \
     --log_samples \
     --log_samples_suffix $TASK_SUFFIX \
-    --output_path ./logs/ 
+    --output_path ./logs/
+```
+
+# OpenAI-Compatible Endpoint (vLLM / SGLang Server)
+
+You can evaluate any model served behind an OpenAI-compatible API endpoint. This is useful when:
+- You have a model running on a **remote vLLM or SGLang server**
+- You want to use a **shared GPU server** without loading the model in-process
+- You want to evaluate **commercial APIs** that follow the OpenAI format (OpenRouter, Azure, etc.)
+
+### Using a local vLLM server
+
+First, start a vLLM server in a separate terminal:
+
+```bash
+# Start vLLM server (example with Qwen3-Omni)
+vllm serve Qwen/Qwen3-Omni-30B-A3B-Instruct --port 8000 --tensor-parallel-size 2
+```
+
+Then run evaluation pointing at it:
+
+```bash
+cd /path/to/lmms-eval
+python3 -m pip install -e .
+
+# Option 1: Pass base_url via model_args
+python -m lmms_eval \
+    --model openai \
+    --model_args model_version=Qwen/Qwen3-Omni-30B-A3B-Instruct,base_url=http://localhost:8000/v1 \
+    --tasks librispeech_test_clean \
+    --batch_size 1 \
+    --log_samples \
+    --output_path ./logs/
+
+# Option 2: Use environment variables
+export OPENAI_API_BASE="http://localhost:8000/v1"
+export OPENAI_API_KEY="EMPTY"
+
+python -m lmms_eval \
+    --model openai \
+    --model_args model_version=Qwen/Qwen3-Omni-30B-A3B-Instruct \
+    --tasks librispeech_test_clean \
+    --batch_size 1 \
+    --log_samples \
+    --output_path ./logs/
+```
+
+### Using OpenRouter or other remote APIs
+
+```bash
+export OPENAI_API_BASE="https://openrouter.ai/api/v1"
+export OPENAI_API_KEY="<YOUR_API_KEY>"
+
+python -m lmms_eval \
+    --model openai \
+    --model_args model_version=<model-name-on-provider> \
+    --tasks mme \
+    --batch_size 1 \
+    --log_samples \
+    --output_path ./logs/
+```
+
+### Using Azure OpenAI
+
+```bash
+export AZURE_OPENAI_API_KEY="<YOUR_API_KEY>"
+export AZURE_OPENAI_API_BASE="<YOUR_ENDPOINT>"
+export AZURE_OPENAI_API_VERSION="2023-07-01-preview"
+
+python -m lmms_eval \
+    --model openai \
+    --model_args model_version=gpt-4o,azure_openai=True \
+    --tasks mme \
+    --batch_size 1 \
+    --log_samples \
+    --output_path ./logs/
 ```

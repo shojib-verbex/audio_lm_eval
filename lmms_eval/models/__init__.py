@@ -83,6 +83,7 @@ AVAILABLE_SIMPLE_MODELS = {
     "slime": "Slime",
     "srt_api": "SRT_API",
     "tinyllava": "TinyLlava",
+    "ultravox": "Ultravox",
     "uni_moe_2_omni": "UniMoE2Omni",
     "videoChatGPT": "VideoChatGPT",
     "video_llava": "VideoLLaVA",

@@ -11,7 +11,7 @@ version = "0.7.0"
 authors = [
     { name = "LMMMs-Lab Evaluation Team", email = "lmms-lab@outlook.com" },
 ]
-description = "A framework for evaluating large multi-modality language models"
+description = "A framework for evaluating large multi-modality language models, with extended support for audio-language model evaluation"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -138,6 +138,30 @@ video = [
     "decord; platform_system != 'Darwin'",
     "eva-decord; platform_system == 'Darwin' and python_version < '3.12'",
 ]
+# Audio-language model extras
+vllm = [
+    "vllm>=0.6.0",
+]
+ultravox = [
+    "vllm>=0.6.0",
+]
+whisper = [
+    "librosa",
+    "soundfile",
+]
+qwen2-audio = [
+    "librosa",
+    "soundfile",
+]
+qwen3-omni = [
+    "librosa",
+    "soundfile",
+    "qwen-omni-utils",
+    "moviepy",
+]
+speech-quality = [
+    "utmos",
+]
 all = [
     "lmms_eval[core]",
     "lmms_eval[mcp]",
@@ -147,6 +171,11 @@ all = [
     "lmms_eval[mmsearch]",
     "lmms_eval[tui]",
     "lmms_eval[video]",
+    "lmms_eval[vllm]",
+    "lmms_eval[ultravox]",
+    "lmms_eval[whisper]",
+    "lmms_eval[qwen2-audio]",
+    "lmms_eval[qwen3-omni]",
 ]
 
 [tool.setuptools.package-data]
