@@ -1,0 +1,7 @@
+task: "oshimaya_80hr_jp"
+test_split: test
+include: _default_template_yaml
+dataset_kwargs:
+  data_files:
+    test: /raid/ASR/ibrahim/japanese_eval_data_inhouse/oshimaya-verbex-prod-data-80-hr_eval_manifest.json
+  field: null

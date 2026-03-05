@@ -1,0 +1,7 @@
+task: "oshimaya_50hr_jp"
+test_split: test
+include: _default_template_yaml
+dataset_kwargs:
+  data_files:
+    test: /raid/ASR/ibrahim/japanese_eval_data_inhouse/oshimaya-50-hr-phase-1_eval_manifest.json
+  field: null
