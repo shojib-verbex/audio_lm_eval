@@ -39,18 +39,33 @@ def ccr_jp_doc_to_text(doc, lmms_eval_specific_kwargs=None):
         lmms_eval_specific_kwargs = {}
     pre_prompt = lmms_eval_specific_kwargs.get("pre_prompt", "")
     post_prompt = lmms_eval_specific_kwargs.get("post_prompt", "")
-    default_prompt = "この日本語の音声を正確に書き起こしてください。日本語のみで出力し、説明や整形は不要です。"
+    default_prompt = "この日本語の音声を正確に書き起こしてください。漢字は一切使わず、すべてひらがなのみで出力してください。説明や整形は不要です。"
     return f"{pre_prompt}{default_prompt}{post_prompt}"
 
 
+def _to_hiragana(text):
+    """Convert kanji and katakana to hiragana using pykakasi."""
+    import pykakasi
+
+    kakasi = pykakasi.kakasi()
+    result = kakasi.convert(text)
+    return "".join([item["hira"] for item in result])
+
+
 def _normalize_japanese(text):
-    """Normalize Japanese text for fair CER comparison."""
+    """Normalize Japanese text for fair CER/WER comparison.
+
+    Converts all text to hiragana so that kanji/katakana/hiragana
+    differences don't affect the error rate.
+    """
     # Full-width to half-width for alphanumeric (Ａ→A, １→1)
     text = unicodedata.normalize("NFKC", text)
     # Remove punctuation: Japanese (。、！？・「」『』（）) and ASCII
     text = re.sub(r'[。、！？!?.,;:・「」『』（）()【】\[\]{}""''\'\"~〜…ー\-－—\s]', '', text)
     # Lowercase for any romaji/English
     text = text.lower()
+    # Convert everything to hiragana (kanji → hiragana, katakana → hiragana)
+    text = _to_hiragana(text)
     return text
 
 
