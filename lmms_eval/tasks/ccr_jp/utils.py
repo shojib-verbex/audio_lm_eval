@@ -3,9 +3,30 @@ import os
 import re
 import unicodedata
 
+import editdistance
 import numpy as np
 import soundfile as sf
 from loguru import logger as eval_logger
+
+# Cached singletons to avoid repeated instantiation (which leaks memory)
+_fugashi_tagger = None
+_pykakasi_instance = None
+
+
+def _get_fugashi_tagger():
+    global _fugashi_tagger
+    if _fugashi_tagger is None:
+        import fugashi
+        _fugashi_tagger = fugashi.Tagger()
+    return _fugashi_tagger
+
+
+def _get_pykakasi():
+    global _pykakasi_instance
+    if _pykakasi_instance is None:
+        import pykakasi
+        _pykakasi_instance = pykakasi.kakasi()
+    return _pykakasi_instance
 
 
 def load_nemo_manifest(manifest_path):
@@ -101,13 +122,76 @@ def _digits_to_japanese(text):
     return re.sub(r'\d+', _replace_number, text)
 
 
-def _to_hiragana(text):
-    """Convert kanji and katakana to hiragana using pykakasi."""
-    import pykakasi
+def _kata_to_hira(text):
+    """Convert katakana characters to hiragana via Unicode offset."""
+    result = []
+    for ch in text:
+        cp = ord(ch)
+        # Katakana range: 0x30A1-0x30F6 → Hiragana: 0x3041-0x3096
+        if 0x30A1 <= cp <= 0x30F6:
+            result.append(chr(cp - 0x60))
+        else:
+            result.append(ch)
+    return ''.join(result)
 
-    kakasi = pykakasi.kakasi()
-    result = kakasi.convert(text)
-    return "".join([item["hira"] for item in result])
+
+def _to_hiragana(text):
+    """Convert kanji and katakana to hiragana using fugashi (MeCab wrapper).
+
+    Fugashi provides clean named-attribute access to MeCab features including
+    readings. Falls back to pykakasi for any tokens without a reading.
+    """
+    try:
+        tagger = _get_fugashi_tagger()
+    except (ImportError, RuntimeError):
+        # fugashi not available, fall back to pykakasi entirely
+        kakasi = _get_pykakasi()
+        return ''.join(item['hira'] for item in kakasi.convert(text))
+
+    words = tagger(text)
+    parts = []
+    fallback_surfaces = []
+    for word in words:
+        # fugashi with UniDic: word.feature has named attributes like .kana, .pron
+        # fugashi with IPAdic: word.feature is a namedtuple with positional access
+        reading = None
+
+        # Try UniDic named attributes first
+        for attr in ('kana', 'pron'):
+            val = getattr(word.feature, attr, None)
+            if val and val != '*':
+                reading = val
+                break
+
+        # Try positional access (IPAdic: reading at index 7, pronunciation at 8)
+        if not reading:
+            try:
+                for idx in (7, 8):
+                    val = word.feature[idx]
+                    if val and val != '*':
+                        reading = val
+                        break
+            except (IndexError, TypeError):
+                pass
+
+        if reading:
+            parts.append(_kata_to_hira(reading))
+        elif all(0x3040 <= ord(c) <= 0x309F for c in word.surface):
+            # Already hiragana
+            parts.append(word.surface)
+        else:
+            # Collect for pykakasi fallback
+            parts.append(None)
+            fallback_surfaces.append((len(parts) - 1, word.surface))
+
+    # Use pykakasi as fallback for tokens without readings
+    if fallback_surfaces:
+        kakasi = _get_pykakasi()
+        for idx, surface in fallback_surfaces:
+            result = kakasi.convert(surface)
+            parts[idx] = ''.join(item['hira'] for item in result)
+
+    return ''.join(p for p in parts if p is not None)
 
 
 def _normalize_japanese(text):
@@ -141,73 +225,55 @@ def ccr_jp_process_results(doc, results):
     prediction = _normalize_japanese(prediction)
 
     if not ground_truth:
-        return {"cer": 0.0 if not prediction else 1.0}
+        return {
+            "cer": {"edits": len(prediction), "ref_len": 0},
+            "wer": {"edits": len(prediction), "ref_len": 0},
+        }
 
-    cer = _calculate_cer(ground_truth, prediction)
-    wer = _calculate_wer(ground_truth, prediction)
-    return {"cer": cer, "wer": wer}
+    cer_edits, cer_ref_len = _calculate_cer(ground_truth, prediction)
+    wer_edits, wer_ref_len = _calculate_wer(ground_truth, prediction)
+    return {
+        "cer": {"edits": cer_edits, "ref_len": cer_ref_len},
+        "wer": {"edits": wer_edits, "ref_len": wer_ref_len},
+    }
 
 
 def _calculate_cer(reference, hypothesis):
-    """Character Error Rate for Japanese (character-level edit distance)."""
+    """Character Error Rate: returns (edits, ref_len) for corpus-level aggregation."""
     ref_chars = list(reference)
     hyp_chars = list(hypothesis)
-
-    n, m = len(ref_chars), len(hyp_chars)
-    dp = [[0] * (m + 1) for _ in range(n + 1)]
-
-    for i in range(n + 1):
-        dp[i][0] = i
-    for j in range(m + 1):
-        dp[0][j] = j
-
-    for i in range(1, n + 1):
-        for j in range(1, m + 1):
-            if ref_chars[i - 1] == hyp_chars[j - 1]:
-                dp[i][j] = dp[i - 1][j - 1]
-            else:
-                dp[i][j] = min(dp[i - 1][j - 1] + 1, dp[i][j - 1] + 1, dp[i - 1][j] + 1)
-
-    return dp[n][m] / max(n, 1)
+    edits = editdistance.eval(ref_chars, hyp_chars)
+    return edits, len(ref_chars)
 
 
 def _calculate_wer(reference, hypothesis):
-    """Word Error Rate for Japanese (split on characters as words are not space-delimited)."""
-    # For Japanese, use MeCab/character n-grams or simple character-group splitting
-    # Simple approach: split by common particles and treat each as a "word"
-    # More practical: use the same edit distance but on word-level tokens
-    import MeCab
-    tagger = MeCab.Tagger("-Owakati")
-    ref_words = tagger.parse(reference).strip().split()
-    hyp_words = tagger.parse(hypothesis).strip().split()
+    """Word Error Rate: returns (edits, ref_len) for corpus-level aggregation."""
+    try:
+        tagger = _get_fugashi_tagger()
+        ref_words = [word.surface for word in tagger(reference)]
+        hyp_words = [word.surface for word in tagger(hypothesis)]
+    except (ImportError, RuntimeError):
+        # Fallback: treat each character as a word (equivalent to CER)
+        ref_words = list(reference)
+        hyp_words = list(hypothesis)
 
-    n, m = len(ref_words), len(hyp_words)
-    dp = [[0] * (m + 1) for _ in range(n + 1)]
-
-    for i in range(n + 1):
-        dp[i][0] = i
-    for j in range(m + 1):
-        dp[0][j] = j
-
-    for i in range(1, n + 1):
-        for j in range(1, m + 1):
-            if ref_words[i - 1] == hyp_words[j - 1]:
-                dp[i][j] = dp[i - 1][j - 1]
-            else:
-                dp[i][j] = min(dp[i - 1][j - 1] + 1, dp[i][j - 1] + 1, dp[i - 1][j] + 1)
-
-    return dp[n][m] / max(n, 1)
+    edits = editdistance.eval(ref_words, hyp_words)
+    return edits, len(ref_words)
 
 
 def ccr_jp_cer(results):
-    """Aggregate CER scores."""
+    """Aggregate CER: corpus-level (total edits / total ref chars)."""
     if not results:
         return 0.0
-    return sum(results) / len(results)
+    total_edits = sum(r["edits"] for r in results)
+    total_ref = sum(r["ref_len"] for r in results)
+    return total_edits / max(total_ref, 1)
 
 
 def ccr_jp_wer(results):
-    """Aggregate WER scores."""
+    """Aggregate WER: corpus-level (total edits / total ref words)."""
     if not results:
         return 0.0
-    return sum(results) / len(results)
+    total_edits = sum(r["edits"] for r in results)
+    total_ref = sum(r["ref_len"] for r in results)
+    return total_edits / max(total_ref, 1)
