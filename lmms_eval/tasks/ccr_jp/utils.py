@@ -43,6 +43,64 @@ def ccr_jp_doc_to_text(doc, lmms_eval_specific_kwargs=None):
     return f"{pre_prompt}{default_prompt}{post_prompt}"
 
 
+def _digits_to_japanese(text):
+    """Convert digit sequences to Japanese hiragana number words."""
+    digit_map = {
+        '0': 'ぜろ', '1': 'いち', '2': 'に', '3': 'さん', '4': 'よん',
+        '5': 'ご', '6': 'ろく', '7': 'なな', '8': 'はち', '9': 'きゅう',
+    }
+
+    def _int_to_japanese(n):
+        if n == 0:
+            return 'ぜろ'
+        parts = []
+        if n >= 100000000:
+            q, n = divmod(n, 100000000)
+            parts.append((_int_to_japanese(q) if q > 1 else '') + 'おく')
+        if n >= 10000:
+            q, n = divmod(n, 10000)
+            parts.append((_int_to_japanese(q) if q > 1 else '') + 'まん')
+        if n >= 1000:
+            q, n = divmod(n, 1000)
+            prefix = '' if q == 1 else _int_to_japanese(q)
+            if q == 3:
+                parts.append('さんぜん')
+            elif q == 8:
+                parts.append('はっせん')
+            else:
+                parts.append(prefix + 'せん')
+        if n >= 100:
+            q, n = divmod(n, 100)
+            if q == 3:
+                parts.append('さんびゃく')
+            elif q == 6:
+                parts.append('ろっぴゃく')
+            elif q == 8:
+                parts.append('はっぴゃく')
+            else:
+                prefix = '' if q == 1 else _int_to_japanese(q)
+                parts.append(prefix + 'ひゃく')
+        if n >= 10:
+            q, n = divmod(n, 10)
+            prefix = '' if q == 1 else _int_to_japanese(q)
+            parts.append(prefix + 'じゅう')
+        if n > 0:
+            parts.append(digit_map[str(n)])
+        return ''.join(parts)
+
+    def _replace_number(m):
+        num_str = m.group(0)
+        try:
+            n = int(num_str)
+            if n <= 999999999:
+                return _int_to_japanese(n)
+        except ValueError:
+            pass
+        return ''.join(digit_map.get(c, c) for c in num_str)
+
+    return re.sub(r'\d+', _replace_number, text)
+
+
 def _to_hiragana(text):
     """Convert kanji and katakana to hiragana using pykakasi."""
     import pykakasi
@@ -64,6 +122,8 @@ def _normalize_japanese(text):
     text = re.sub(r'[。、！？!?.,;:・「」『』（）()【】\[\]{}""''\'\"~〜…ー\-－—\s]', '', text)
     # Lowercase for any romaji/English
     text = text.lower()
+    # Convert digits to Japanese words (5000 → ごせん) before hiragana conversion
+    text = _digits_to_japanese(text)
     # Convert everything to hiragana (kanji → hiragana, katakana → hiragana)
     text = _to_hiragana(text)
     return text
