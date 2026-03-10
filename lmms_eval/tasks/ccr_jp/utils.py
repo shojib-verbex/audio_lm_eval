@@ -3,7 +3,14 @@ import os
 import re
 import unicodedata
 
-import editdistance
+try:
+    import editdistance
+except ImportError:
+    raise ImportError(
+        "ccr_jp task requires additional dependencies:\n"
+        "  pip install editdistance fugashi unidic-lite pykakasi"
+    )
+
 import numpy as np
 import soundfile as sf
 from loguru import logger as eval_logger
