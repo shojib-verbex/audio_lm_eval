@@ -1,0 +1,23 @@
+task: jnli
+dataset_path: parquet
+test_split: validation
+output_type: generate_until
+process_docs: !function utils.process_docs
+doc_to_text: "前提: {{sentence1}}\n仮説: {{sentence2}}\nこの前提から仮説は「含意」「矛盾」「中立」のいずれですか？一つだけ答えてください。\n"
+doc_to_target: "{{label_text}}"
+process_results: !function utils.process_results
+generation_kwargs:
+  max_new_tokens: 4096
+  temperature: 0.0
+  do_sample: false
+  until:
+    - "</s>"
+metric_list:
+  - metric: acc
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0
+dataset_kwargs:
+  data_files:
+    validation: "hf://datasets/shunk031/JGLUE@refs/convert/parquet/JNLI/validation/*.parquet"

@@ -1,0 +1,27 @@
+dataset_path: nlp-waseda/JMMLU
+test_split: train
+output_type: generate_until
+process_docs: !function utils.process_docs
+doc_to_text: "{{question.strip()}}\nA. {{choices[0]}}\nB. {{choices[1]}}\nC. {{choices[2]}}\nD. {{choices[3]}}\n答え: A, B, C, Dの中から一つだけ選んでください。\n"
+doc_to_target: "{{['A', 'B', 'C', 'D'][answer_idx]}}"
+generation_kwargs:
+  max_new_tokens: 4096
+  temperature: 0.0
+  do_sample: false
+  until:
+    - "</s>"
+filter_list:
+  - name: "get-answer"
+    filter:
+      - function: "regex"
+        regex_pattern: "([A-D])"
+        group_select: -1
+      - function: "take_first"
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0
+dataset_kwargs:
+  revision: refs/convert/parquet

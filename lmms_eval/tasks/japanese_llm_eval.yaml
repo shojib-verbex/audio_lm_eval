@@ -1,0 +1,11 @@
+group: japanese_llm_eval
+task:
+  - jmmlu
+  - jcommonsenseqa
+  - jnli
+  - mgsm_ja
+aggregate_metric_list:
+  - metric: exact_match
+    weight_by_size: true
+  - metric: acc
+    weight_by_size: true

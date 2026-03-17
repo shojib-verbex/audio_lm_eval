@@ -1,0 +1,26 @@
+task: jcommonsenseqa
+dataset_path: leemeng/jcommonsenseqa
+test_split: validation
+output_type: generate_until
+process_docs: !function utils.process_docs
+doc_to_text: "質問: {{question}}\n選択肢:\nA. {{choices[0]}}\nB. {{choices[1]}}\nC. {{choices[2]}}\nD. {{choices[3]}}\nE. {{choices[4]}}\n答え: A, B, C, D, Eの中から一つだけ選んでください。\n"
+doc_to_target: "{{['A', 'B', 'C', 'D', 'E'][label]}}"
+generation_kwargs:
+  max_new_tokens: 4096
+  temperature: 0.0
+  do_sample: false
+  until:
+    - "</s>"
+filter_list:
+  - name: "get-answer"
+    filter:
+      - function: "regex"
+        regex_pattern: "([A-E])"
+        group_select: -1
+      - function: "take_first"
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+metadata:
+  version: 1.0
