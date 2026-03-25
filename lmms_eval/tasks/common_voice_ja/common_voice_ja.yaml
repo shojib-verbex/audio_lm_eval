@@ -1,0 +1,3 @@
+task: common_voice_ja
+test_split: test
+include: _default_template_yaml

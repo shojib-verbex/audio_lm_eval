@@ -1,0 +1,32 @@
+dataset_path: reazon-research/reazonspeech
+dataset_kwargs:
+  name: all
+  trust_remote_code: True
+doc_to_target: "transcription"
+doc_to_visual: !function utils.reazonspeech_doc_to_audio
+doc_to_text: !function utils.reazonspeech_doc_to_text
+output_type: generate_until
+generation_kwargs:
+  max_new_tokens: 256
+  temperature: 0
+  do_sample: false
+process_results: !function utils.reazonspeech_process_results
+metric_list:
+  - metric: cer
+    aggregation: !function utils.reazonspeech_cer
+    higher_is_better: false
+  - metric: wer
+    aggregation: !function utils.reazonspeech_wer
+    higher_is_better: false
+metadata:
+  - version: 0.0
+lmms_eval_specific_kwargs:
+  default:
+    pre_prompt: ""
+    post_prompt: ""
+  qwen3_omni:
+    pre_prompt: "この日本語の音声を正確に書き起こしてください。日本語のみで出力してください。"
+    post_prompt: ""
+  qwen2_5_omni:
+    pre_prompt: "句読点なしで日本語の音声を書き起こしてください。"
+    post_prompt: ""

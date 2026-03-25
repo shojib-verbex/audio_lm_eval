@@ -1,0 +1,5 @@
+group: japanese_asr_eval
+task:
+  - ccr_jp
+  - common_voice_ja
+  - reazonspeech
